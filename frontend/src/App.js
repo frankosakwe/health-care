@@ -17,11 +17,13 @@ import {
   FileText,
   Award,
   Database,
-  Lock
+  Lock,
+  Cpu
 } from 'lucide-react';
 import './App.css';
 import MedicalRecordManager from './components/MedicalRecordManager';
 import MFASystem from './components/MFASystem';
+import ClaimEngine from './components/ClaimEngine';
 
 // Contract ABIs (simplified for demo)
 const HEALTHCARE_DRIPS_ABI = [
@@ -298,6 +300,13 @@ function App() {
               <Lock className="w-4 h-4" />
               Security
             </button>
+            <button 
+              onClick={() => setActiveTab('engine')}
+              className={activeTab === 'engine' ? 'active' : ''}
+            >
+              <Cpu className="w-4 h-4" />
+              Engine
+            </button>
           </nav>
           
           <div className="wallet-section">
@@ -330,6 +339,7 @@ function App() {
             {activeTab === 'contributors' && <Contributors />}
             {activeTab === 'records' && <MedicalRecordManager account={account} contract={contract} />}
             {activeTab === 'security' && <MFASystem account={account} contract={contract} />}
+            {activeTab === 'engine' && <ClaimEngine account={account} contract={contract} />}
           </>
         )}
       </main>

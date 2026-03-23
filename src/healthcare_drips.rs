@@ -135,6 +135,28 @@ pub struct MedicalRecord {
     pub authorized_users: Vec<Address>,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimRule {
+    pub id: u64,
+    pub rule_name: String,
+    pub min_amount: i128,
+    pub max_amount: i128,
+    pub allowed_types: Vec<IssueType>,
+    pub auto_approve: bool,
+    pub active: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClaimProcessingStats {
+    pub total_processed: u64,
+    pub auto_approved: u64,
+    pub flagged_for_review: u64,
+    pub total_amount_processed: i128,
+    pub last_processing_run: u64,
+}
+
 // ========== ERRORS ==========
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -179,6 +201,17 @@ impl HealthcareDrips {
         env.storage().instance().set(&Symbol::short("next_drip_id"), &1u64);
         env.storage().instance().set(&Symbol::short("next_issue_id"), &1u64);
         env.storage().instance().set(&Symbol::short("next_record_id"), &1u64);
+        env.storage().instance().set(&Symbol::short("next_rule_id"), &1u64);
+        
+        // Initialize processing stats
+        let stats = ClaimProcessingStats {
+            total_processed: 0,
+            auto_approved: 0,
+            flagged_for_review: 0,
+            total_amount_processed: 0,
+            last_processing_run: env.ledger().timestamp(),
+        };
+        env.storage().instance().set(&Symbol::short("processing_stats"), &stats);
         
         // Initialize verified contributors list
         env.storage().instance().set(&Symbol::short("verified_contributors"), &Vec::new(env));
@@ -832,6 +865,142 @@ impl HealthcareDrips {
             .unwrap_or(Vec::new(env))
     }
     
+    // ========== CLAIM PROCESSING ENGINE ==========
+    
+    pub fn add_claim_rule(
+        env: &Env,
+        name: String,
+        min_amount: i128,
+        max_amount: i128,
+        allowed_types: Vec<IssueType>,
+        auto_approve: bool,
+        caller: Address,
+    ) -> Result<u64, HealthcareDripsError> {
+        if !Self::has_role(env, caller, APPROVER) {
+            return Err(HealthcareDripsError::Unauthorized);
+        }
+        
+        let next_id = Self::get_next_rule_id(env);
+        let rule = ClaimRule {
+            id: next_id,
+            rule_name: name,
+            min_amount,
+            max_amount,
+            allowed_types,
+            auto_approve,
+            active: true,
+        };
+        
+        env.storage().instance().set(&Symbol::new(&env, &format!("rule_{}", next_id)), &rule);
+        
+        // Add to active rules list
+        let mut rules: Vec<u64> = env.storage().instance()
+            .get(&Symbol::short("active_rules"))
+            .unwrap_or(Vec::new(env));
+        rules.push_back(next_id);
+        env.storage().instance().set(&Symbol::short("active_rules"), &rules);
+        
+        Ok(next_id)
+    }
+    
+    pub fn process_claim_automated(
+        env: &Env,
+        issue_id: u64,
+        caller: Address,
+    ) -> Result<bool, HealthcareDripsError> {
+        if !Self::has_role(env, caller, REVIEWER) {
+            return Err(HealthcareDripsError::Unauthorized);
+        }
+        
+        let issue_key = Symbol::new(&env, &format!("issue_{}", issue_id));
+        let mut issue: Issue = env.storage().instance()
+            .get(&issue_key)
+            .ok_or(HealthcareDripsError::InvalidIssueId)?;
+            
+        if issue.status != IssueStatus::Submitted {
+            return Err(HealthcareDripsError::IssueNotSubmitted);
+        }
+        
+        let rules_ids: Vec<u64> = env.storage().instance()
+            .get(&Symbol::short("active_rules"))
+            .unwrap_or(Vec::new(env));
+            
+        let mut auto_approved = false;
+        let mut rule_applied = false;
+        
+        for rule_id in rules_ids.iter() {
+            let rule: ClaimRule = env.storage().instance()
+                .get(&Symbol::new(&env, &format!("rule_{}", rule_id))).unwrap();
+                
+            if rule.active && 
+               issue.funding_amount >= rule.min_amount && 
+               issue.funding_amount <= rule.max_amount &&
+               rule.allowed_types.contains(issue.issue_type) {
+                
+                rule_applied = true;
+                if rule.auto_approve {
+                    issue.status = IssueStatus::Approved;
+                    auto_approved = true;
+                } else {
+                    issue.status = IssueStatus::UnderReview;
+                }
+                break;
+            }
+        }
+        
+        if !rule_applied {
+            issue.status = IssueStatus::PendingApproval; // Flag for manual review
+        }
+        
+        issue.last_updated = env.ledger().timestamp();
+        env.storage().instance().set(&issue_key, &issue);
+        
+        // Update stats
+        let mut stats: ClaimProcessingStats = env.storage().instance()
+            .get(&Symbol::short("processing_stats")).unwrap_or(ClaimProcessingStats {
+                total_processed: 0,
+                total_amount_processed: 0,
+                auto_approved: 0,
+                flagged_for_review: 0,
+                last_processing_run: 0,
+            });
+        stats.total_processed += 1;
+        stats.total_amount_processed += issue.funding_amount;
+        if auto_approved {
+            stats.auto_approved += 1;
+        } else {
+            stats.flagged_for_review += 1;
+        }
+        stats.last_processing_run = env.ledger().timestamp();
+        env.storage().instance().set(&Symbol::short("processing_stats"), &stats);
+        
+        Ok(auto_approved)
+    }
+    
+    pub fn get_processing_stats(env: &Env) -> ClaimProcessingStats {
+        env.storage().instance().get(&Symbol::short("processing_stats")).unwrap_or(ClaimProcessingStats {
+            total_processed: 0,
+            total_amount_processed: 0,
+            auto_approved: 0,
+            flagged_for_review: 0,
+            last_processing_run: 0,
+        })
+    }
+    
+    pub fn get_active_rules(env: &Env) -> Vec<ClaimRule> {
+        let rules_ids: Vec<u64> = env.storage().instance()
+            .get(&Symbol::short("active_rules"))
+            .unwrap_or(Vec::new(env));
+            
+        let mut rules = Vec::new(env);
+        for id in rules_ids.iter() {
+            if let Some(rule) = env.storage().instance().get::<_, ClaimRule>(&Symbol::new(&env, &format!("rule_{}", id))) {
+                rules.push_back(rule);
+            }
+        }
+        rules
+    }
+    
     // ========== HELPER FUNCTIONS ==========
     
     fn get_next_drip_id(env: &Env) -> u64 {
@@ -850,6 +1019,13 @@ impl HealthcareDrips {
     
     fn get_next_record_id(env: &Env) -> u64 {
         let key = Symbol::short("next_record_id");
+        let next_id = env.storage().instance().get(&key).unwrap_or(1u64);
+        env.storage().instance().set(&key, &(next_id + 1));
+        next_id
+    }
+    
+    fn get_next_rule_id(env: &Env) -> u64 {
+        let key = Symbol::short("next_rule_id");
         let next_id = env.storage().instance().get(&key).unwrap_or(1u64);
         env.storage().instance().set(&key, &(next_id + 1));
         next_id

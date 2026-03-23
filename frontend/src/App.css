@@ -435,8 +435,40 @@ body {
 .funding-requests,
 .contributors,
 .medical-record-manager,
-.mfa-system {
+.mfa-system,
+.claim-engine {
   animation: fadeIn 0.6s ease-out;
+}
+
+/* Claim Engine Specific Styles */
+.claim-engine .bg-white {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+.claim-engine table {
+  background: transparent;
+}
+
+.claim-engine tr:last-child td {
+  border-bottom: none;
+}
+
+.claim-engine .shadow-xl {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+}
+
+.claim-engine .bg-gray-900 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.claim-engine .animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* MFA System Specific Styles */
