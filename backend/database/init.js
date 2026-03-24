@@ -1,28 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-const { createClaimProcessingTables, createClaimProcessingViews } = require('./claimProcessingSchema');
-
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'healthcare.db');
-
-// Read MFA schema
-const mfaSchemaPath = path.join(__dirname, 'mfa_schema.sql');
-let mfaSchema = '';
-if (fs.existsSync(mfaSchemaPath)) {
-  mfaSchema = fs.readFileSync(mfaSchemaPath, 'utf8');
-}
-
-function initializeDatabase() {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) {
-        console.error('Error opening database:', err);
-        reject(err);
-        return;
-      }
-      console.log('Connected to SQLite database');
-    });
-
     const tables = [
       `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
