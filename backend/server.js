@@ -6,13 +6,16 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const patientRoutes = require('./routes/patients');
-const medicalRecordsRoutes = require('./routes/medicalRecords');
-<
 
+app.use('/api/auth', authRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/telemedicine', telemedicineRoutes);
+
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -21,44 +24,46 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  
-  // Handle audit alert subscriptions
-  socket.on('subscribe_audit_alerts', (data) => {
-    const { alertTypes = [], severities = [] } = data;
-    if (auditMonitoringService) {
-      auditMonitoringService.subscribeToAlerts(socket, alertTypes, severities);
-    }
-  });
+// Socket.io initialization for Telemedicine signaling
+const TelemedicineService = require('./services/telemedicineService');
+const telemedicineService = new TelemedicineService(io);
+telemedicineService.initialize();
 
-  socket.on('unsubscribe_audit_alerts', () => {
-    if (auditMonitoringService) {
-      auditMonitoringService.unsubscribeFromAlerts(socket.id);
-    }
-  });
-  
+io.on('connection', (socket) => {
+
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log('User disconnected:', socket.id);
   });
 });
 
-app.use(errorHandler);
+// Error handling
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
 
+// Database init
+async function initializeDatabase() {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      console.log('Database initialized');
+      resolve();
+    });
+  });
+}
+
+// Start server
 async function startServer() {
   try {
     await initializeDatabase();
 
-    // Initialize audit monitoring service
-    auditMonitoringService = new AuditMonitoringService(io);
 
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Health check available at http://localhost:${PORT}/api/health`);
-      console.log(`HL7/FHIR API available at http://localhost:${PORT}/api/hl7-fhir`);
-      console.log(`Audit API available at http://localhost:${PORT}/api/audit`);
-      console.log('Real-time audit monitoring enabled');
     });
+
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
