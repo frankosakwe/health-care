@@ -10,36 +10,6 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*", // Adjust for production
-    methods: ["GET", "POST"]
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, './database/healthcare.db');
-
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(compression());
-app.use(morgan('dev'));
-app.use(express.json());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-});
-app.use('/api/', limiter);
-
-// Routes
-const authRoutes = require('./routes/auth');
-const patientRoutes = require('./routes/patients');
-const telemedicineRoutes = require('./routes/telemedicine')(io);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
@@ -60,10 +30,6 @@ const telemedicineService = new TelemedicineService(io);
 telemedicineService.initialize();
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  // Telemedicine signaling
-  telemedicineService.handleSignaling(socket);
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
@@ -95,9 +61,7 @@ async function startServer() {
   try {
     await initializeDatabase();
 
-    httpServer.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/api/health`);
+
     });
 
   } catch (error) {
