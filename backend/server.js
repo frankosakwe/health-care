@@ -10,10 +10,43 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
 
+const authRoutes = require('./routes/auth');
+const patientRoutes = require('./routes/patients');
+const telemedicineRoutes = require('./routes/telemedicine');
+const fraudDetectionRoutes = require('./routes/fraudDetection');
 
+const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // In production, restrict to actual frontend URL
+    methods: ['GET', 'POST']
+  }
+});
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(compression());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Database setup
+const DB_PATH = path.join(__dirname, 'database', 'healthcare.sqlite');
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/telemedicine', telemedicineRoutes);
+app.use('/api/fraud', fraudDetectionRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -60,8 +93,9 @@ async function initializeDatabase() {
 async function startServer() {
   try {
     await initializeDatabase();
-
-
+    
+    server.listen(3000, () => {
+      console.log('Server running on port 3000');
     });
 
   } catch (error) {
