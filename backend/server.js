@@ -10,6 +10,12 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 require('dotenv').config();
 
+const JobProcessor = require('./services/jobProcessor');
+
+// Initialize job processor
+const jobProcessor = new JobProcessor();
+
+// Import routes
 const authRoutes = require('./routes/auth');
 const patientRoutes = require('./routes/patients');
 const telemedicineRoutes = require('./routes/telemedicine');
@@ -53,7 +59,11 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    services: {
+      jobProcessor: jobProcessor.isRunning,
+      transformations: true
+    }
   });
 });
 
@@ -103,6 +113,19 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  await jobProcessor.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully');
+  await jobProcessor.shutdown();
+  process.exit(0);
+});
 
 startServer();
 
