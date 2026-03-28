@@ -96,6 +96,10 @@ app.use('/api/search', searchRoutes);
 const documentRoutes = require('./routes/documents');
 app.use('/api/documents', documentRoutes);
 
+// User profile management routes
+const profileRoutes = require('./routes/profile');
+app.use('/api/profile', profileRoutes);
+
 // Static file serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
