@@ -82,6 +82,11 @@ const providerAvailabilityRoutes = require('./routes/providerAvailability');
 const reviewModerationRoutes = require('./routes/reviewModeration');
 const paymentsRoutes = require('./routes/payments');
 const paymentsExportRoutes = require('./src/routes/paymentsExport');
+const stellarRoutes = require('./routes/stellar');
+const hl7FhirRoutes = require('./routes/hl7-fhir');
+const enhancedPaymentRoutes = require('./routes/enhancedPayments');
+const ehrIntegrationRoutes = require('./routes/ehrIntegration');
+const insuranceRoutes = require('./routes/insurance');
 
 const app = express();
 const server = createServer(app);
@@ -118,6 +123,11 @@ app.use('/api/provider-availability', providerAvailabilityRoutes);
 app.use('/api/review-moderation', reviewModerationRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/payments', paymentsExportRoutes);
+app.use('/api/stellar', stellarRoutes);
+app.use('/api/provider-integration', hl7FhirRoutes);
+app.use('/api/payment-gateway', enhancedPaymentRoutes);
+app.use('/api/ehr-integration', ehrIntegrationRoutes);
+app.use('/api/insurance', insuranceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
