@@ -80,6 +80,8 @@ const providerDirectoryRoutes = require('./routes/providerDirectory');
 const appointmentsRoutes = require('./routes/appointments');
 const providerAvailabilityRoutes = require('./routes/providerAvailability');
 const reviewModerationRoutes = require('./routes/reviewModeration');
+const paymentsRoutes = require('./routes/payments');
+const paymentsExportRoutes = require('./src/routes/paymentsExport');
 
 const app = express();
 const server = createServer(app);
@@ -114,6 +116,8 @@ app.use('/api/providers', providerDirectoryRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/provider-availability', providerAvailabilityRoutes);
 app.use('/api/review-moderation', reviewModerationRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/payments', paymentsExportRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
