@@ -80,6 +80,8 @@ const providerDirectoryRoutes = require('./routes/providerDirectory');
 const appointmentsRoutes = require('./routes/appointments');
 const providerAvailabilityRoutes = require('./routes/providerAvailability');
 const reviewModerationRoutes = require('./routes/reviewModeration');
+const paymentsRoutes = require('./routes/payments');
+const paymentsExportRoutes = require('./src/routes/paymentsExport');
 
 const app = express();
 const server = createServer(app);
@@ -114,6 +116,8 @@ app.use('/api/providers', providerDirectoryRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/provider-availability', providerAvailabilityRoutes);
 app.use('/api/review-moderation', reviewModerationRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/payments', paymentsExportRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -199,6 +203,21 @@ const realtimeDataBroadcaster = new RealtimeDataBroadcaster(io);
 // Make broadcaster accessible globally
 global.realtimeBroadcaster = realtimeDataBroadcaster;
 
+// Transaction WebSocket server initialization
+const TransactionServer = require('./src/websocket/transactionServer');
+const TransactionMonitor = require('./src/services/transactionMonitor');
+const TransactionEvents = require('./src/events/transactionEvents');
+
+// Initialize transaction services
+const transactionMonitor = new TransactionMonitor();
+const transactionServer = new TransactionServer(io);
+const transactionEvents = new TransactionEvents(transactionServer, transactionMonitor);
+
+// Make services accessible globally
+global.transactionMonitor = transactionMonitor;
+global.transactionServer = transactionServer;
+global.transactionEvents = transactionEvents;
+
 // System monitoring service initialization
 const { SystemMonitoringService, getMonitoringService } = require('./services/systemMonitoringService');
 const monitoringService = getMonitoringService(io);
@@ -219,6 +238,10 @@ app.use('/api/documents', documentRoutes);
 // User profile management routes
 const profileRoutes = require('./routes/profile');
 app.use('/api/profile', profileRoutes);
+
+// Transaction routes
+const transactionRoutes = require('./routes/transactions');
+app.use('/api/transactions', transactionRoutes);
 
 // Static file serving for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -258,9 +281,14 @@ async function startServer() {
     monitoringService.initialize();
     console.log('[Server] System monitoring service initialized');
     
+    // Initialize transaction services
+    await transactionMonitor.initialize();
+    console.log('[Server] Transaction monitoring service initialized');
+    
     server.listen(3000, () => {
       console.log('Server running on port 3000');
       console.log('[Server] Real-time dashboard available at /dashboard');
+      console.log('[Server] Transaction WebSocket endpoint: /ws/transactions');
     });
 
   } catch (error) {
@@ -274,6 +302,7 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
 
   await jobProcessor.shutdown();
+  await transactionEvents.shutdown();
   process.exit(0);
 });
 
@@ -281,6 +310,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
 
   await jobProcessor.shutdown();
+  await transactionEvents.shutdown();
   process.exit(0);
 });
 
