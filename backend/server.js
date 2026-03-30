@@ -85,6 +85,7 @@ const paymentsExportRoutes = require('./src/routes/paymentsExport');
 const stellarRoutes = require('./routes/stellar');
 const hl7FhirRoutes = require('./routes/hl7-fhir');
 const enhancedPaymentRoutes = require('./routes/enhancedPayments');
+const ehrIntegrationRoutes = require('./routes/ehrIntegration');
 
 const app = express();
 const server = createServer(app);
@@ -124,6 +125,7 @@ app.use('/api/payments', paymentsExportRoutes);
 app.use('/api/stellar', stellarRoutes);
 app.use('/api/provider-integration', hl7FhirRoutes);
 app.use('/api/payment-gateway', enhancedPaymentRoutes);
+app.use('/api/ehr-integration', ehrIntegrationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
